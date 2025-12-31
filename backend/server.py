@@ -6,17 +6,14 @@ import numpy as np
 import os
 import sqlite3
 
-# --- App setup ---
 app = Flask(__name__)
 CORS(app)
 
-# --- Model ---
 MODEL_PATH = "waste_cnn_model.h5"
 IMG_SIZE = (128, 128)
-CLASS_NAMES = sorted(os.listdir("dataset"))  # folders: cardboard, glass, plastic, etc.
+CLASS_NAMES = sorted(os.listdir("dataset"))  
 model = load_model(MODEL_PATH)
 
-# --- Database ---
 DB_PATH = "D:/EcoRouteAI_SmartBinSim/backend/wasteLog.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 c = conn.cursor()
@@ -28,7 +25,6 @@ c.execute('''CREATE TABLE IF NOT EXISTS items
               timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
 conn.commit()
 
-# --- Routes ---
 @app.route("/classify-item", methods=["POST"])
 def classify_item():
     if "file" not in request.files:
@@ -38,25 +34,19 @@ def classify_item():
     if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
-    # Save temporary
     temp_path = os.path.join("temp_upload.jpg")
     file.save(temp_path)
 
-    # Preprocess image
     img = image.load_img(temp_path, target_size=IMG_SIZE)
     img_array = image.img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0) / 255.0
 
-    # Predict
     predictions = model.predict(img_array)[0]
     max_index = np.argmax(predictions)
     category = CLASS_NAMES[max_index]
     confidence = float(predictions[max_index])
 
-    # Remove temp file
     os.remove(temp_path)
-
-    # SAVE TO DATABASE
     c.execute(
         "INSERT INTO items (name, category, confidence) VALUES (?, ?, ?)",
         (file.filename, category, confidence)
